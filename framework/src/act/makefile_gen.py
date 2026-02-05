@@ -13,7 +13,7 @@ from typing import TypedDict
 
 import pyjson5
 
-from act.config import Config
+from act.config import Config, RefModelType
 from act.parse_test_constraints import TestMetadata
 
 # Makefile templates
@@ -60,7 +60,7 @@ def gen_compile_targets(
     base_dir: Path,
     xlen: int,
     config: Config,
-    sail_config_path: Path,
+    ref_model_config_path: Path | None,
     debug: bool = False,
 ) -> str:
     """Generate Makefile targets for compiling a test.
@@ -89,6 +89,12 @@ def gen_compile_targets(
     flen = test_metadata.flen
     test_path = test_metadata.test_path
     ref_model_sig_flags = config.ref_model_type.signature_flags.format(sig_file=sig_file, granularity=int(xlen / 8))
+    ref_model_args_line = f"\t\t{config.ref_model_args} \\\n" if config.ref_model_args else ""
+    trace_all_line = "--trace-all" if (debug and config.ref_model_type == RefModelType.SAIL) else ""
+    trace_output_line = f"\t\t--trace-output {sig_trace_file} \\\n" if (debug and config.ref_model_type == RefModelType.SAIL) else ""
+    ref_model_config_line = (
+        f"\t\t--config {ref_model_config_path} \\\n" if config.ref_model_type == RefModelType.SAIL else ""
+    )
     mabi = f"{'i' if xlen == 32 else ''}lp{xlen}{'e' if test_metadata.e_ext else ''}"
 
     # Generate Makefile targets
@@ -109,9 +115,10 @@ def gen_compile_targets(
         }"
         "# Generate signature file\n"
         f"{sig_file}: {sig_elf}\n"
-        f"\t{config.ref_model_exe} {'--trace-all' if debug else ''} \\\n"
-        f"{f'\t\t--trace-output {sig_trace_file} \\\n' if debug else ''}"
-        f"\t\t--config {sail_config_path} \\\n"
+        f"\t{config.ref_model_exe} {trace_all_line} \\\n"
+        f"{trace_output_line}"
+        f"{ref_model_args_line}"
+        f"{ref_model_config_line}"
         f"\t\t{ref_model_sig_flags} \\\n"
         f"\t\t{sig_elf} \\\n"
         f"\t\t> {sig_log_file} 2>&1\n"
@@ -215,7 +222,9 @@ def generate_common_makefile(
     common_build_dir = common_wkdir / "build"
 
     # Generate maximal Sail config with all extensions enabled and memory map from user's config
-    common_sail_config = generate_sail_config(xlen, e_ext, config.dut_include_dir / "sail.json", common_wkdir)
+    common_ref_config: Path | None = None
+    if config.ref_model_type == RefModelType.SAIL:
+        common_ref_config = generate_sail_config(xlen, e_ext, config.dut_include_dir / "sail.json", common_wkdir)
 
     # Makefile targets
     directory_set: set[str] = set()
@@ -234,7 +243,7 @@ def generate_common_makefile(
         test_targets.append(final_elf)
         directory_set.update([str((common_elf_dir / test_name).parent), str((common_build_dir / test_name).parent)])
         makefile_lines.append(
-            gen_compile_targets(test_name, test_metadata, common_wkdir, xlen, config, common_sail_config, debug)
+            gen_compile_targets(test_name, test_metadata, common_wkdir, xlen, config, common_ref_config, debug)
         )
 
     # Write out Makefile
@@ -295,7 +304,7 @@ def generate_config_makefile(
         final_elf = config_elf_dir / elf_name
         trace_name = test_name.with_suffix(".rvvi")
         trace_path = config_coverage_dir / trace_name
-        sail_config_path = config.dut_include_dir / "sail.json"
+        ref_model_config_path = config.dut_include_dir / "sail.json" if config.ref_model_type == RefModelType.SAIL else None
 
         # Add test to target lists
         test_targets.append(final_elf)
@@ -317,11 +326,13 @@ def generate_config_makefile(
             )
         else:
             makefile_lines.append(
-                gen_compile_targets(test_name, test_metadata, config_wkdir, xlen, config, sail_config_path, debug)
+                gen_compile_targets(test_name, test_metadata, config_wkdir, xlen, config, ref_model_config_path, debug)
             )
 
         # Generate coverage trace targets
         if coverage_enabled:
+            if config.ref_model_type != RefModelType.SAIL:
+                raise ValueError("Coverage generation is only supported with the Sail reference model.")
             if trace_path.parent not in coverage_targets:
                 coverage_targets[trace_path.parent] = []
             coverage_targets[trace_path.parent].append(trace_path.absolute())
