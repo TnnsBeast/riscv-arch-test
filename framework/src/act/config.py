@@ -21,14 +21,14 @@ class RefModelType(str, Enum):
 
     # TODO: Add support for additional reference models (Spike, Whisper, etc.)
     SAIL = "sail"
-    # SPIKE = "spike"
+    SPIKE = "spike"
 
     @property
     def signature_flags(self) -> str:
         """Get the flags for this reference model."""
         flags_map = {
             RefModelType.SAIL: "--test-signature={sig_file} --signature-granularity {granularity}",
-            # RefModelType.SPIKE: "+signature={sig_file} +signature-granularity={granularity}",
+            RefModelType.SPIKE: "+signature={sig_file} +signature-granularity={granularity}",
         }
         return flags_map[self]
 
@@ -44,6 +44,7 @@ class Config(BaseModel):
     objdump_exe: Path | None = None
     ref_model_type: RefModelType = RefModelType.SAIL
     ref_model_exe: Path
+    ref_model_args: str | None = None
 
     model_config = {"frozen": True}
 
