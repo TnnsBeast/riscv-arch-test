@@ -47,7 +47,7 @@ def _generate_hcsr_smoke_tests(test_data: TestData) -> list[str]:
 
 
 def _generate_hcsr_regression_tests(test_data: TestData) -> list[str]:
-    """Generate a small set of H CSR access tests that previously failed."""
+    """Generate a small set of H CSR access tests that were previously failing."""
     covergroup = "H_mcsr_cg"
     coverpoint = "cp_hcsr_access"
 
@@ -148,12 +148,11 @@ def _generate_hcsr_safe_readonly_tests(test_data: TestData) -> list[str]:
 
 
 def _generate_hcsr_expected_fail_tests(test_data: TestData) -> list[str]:
-    """Generate a testplan CSR access expected to fail until RTL is fixed."""
+    """Generate testplan CSR access cases now expected to pass with current WARL masks."""
     covergroup = "H_mcsr_cg"
     coverpoint = "cp_hcsr_access"
 
     csrs = [
-        "hie",
         "hstatus",
     ]
 
@@ -161,7 +160,7 @@ def _generate_hcsr_expected_fail_tests(test_data: TestData) -> list[str]:
     lines = [
         comment_banner(
             "cp_hcsr_access",
-            "Testplan add-on: write-all-1s expected to fail until RTL masks WARL bits",
+            "Testplan add-on: write-all-1s for WARL-masked CSRs (expected to pass)",
         ),
     ]
 
@@ -189,10 +188,14 @@ def _generate_hcsr_additional_access_tests(test_data: TestData) -> list[str]:
     # Additional CSRs from the testplan that should be safe on current RTL.
     csrs = [
         "hcounteren",
+        "hgeie",
+        "henvcfg",
+        "hie",
         "htimedelta",
         "htval",
         "htinst",
         "vsie",
+        "vsstatus",
         "vsscratch",
         "vsepc",
         "vstval",
@@ -232,6 +235,7 @@ def _generate_hcsr_rv32_access_tests(test_data: TestData) -> list[str]:
     # High-half CSRs only exist when XLEN=32.
     csrs = [
         "hedelegh",
+        "henvcfgh",
         "htimedeltah",
         "vstimecmph",
     ]
@@ -262,6 +266,40 @@ def _generate_hcsr_rv32_access_tests(test_data: TestData) -> list[str]:
     return lines
 
 
+def _generate_shvstvecd_tests(test_data: TestData) -> list[str]:
+    """Generate Shvstvecd testplan case: vstvec direct mode base alignment."""
+    covergroup = "Shvstvecd_cg"
+    coverpoint = "cp_shvstvecd"
+
+    save_reg, write_reg = test_data.int_regs.get_registers(2, exclude_regs=[0])
+    lines = [
+        comment_banner(
+            "cp_shvstvecd",
+            "Testplan add-on: write aligned bases to vstvec with direct mode (MODE=0)",
+        )
+    ]
+
+    lines.extend(
+        [
+            f"\tCSRR(x{save_reg}, vstvec)      # save vstvec",
+            f"\tla x{write_reg}, shvstvecd_base",
+            test_data.add_testcase(coverpoint, "vstvec_direct_base", covergroup),
+            gen_csr_write_sigupd(write_reg, "vstvec", test_data),
+            f"\taddi x{write_reg}, x{write_reg}, 4",
+            test_data.add_testcase(coverpoint, "vstvec_direct_base_plus4", covergroup),
+            gen_csr_write_sigupd(write_reg, "vstvec", test_data),
+            f"\tCSRW(vstvec, x{save_reg})      # restore vstvec",
+            "\t.align 2",
+            "shvstvecd_base:",
+            "\tnop",
+            "",
+        ]
+    )
+
+    test_data.int_regs.return_registers([save_reg, write_reg])
+    return lines
+
+
 @add_priv_test_generator("H", extensions=["H"])
 def make_h(test_data: TestData) -> list[str]:
     """Generate tests for H hypervisor extension."""
@@ -270,7 +308,7 @@ def make_h(test_data: TestData) -> list[str]:
     # Not in testplan: minimal smoke reads to keep flow green on current RTL.
     lines.extend(_generate_hcsr_smoke_tests(test_data))
 
-    # From testplan (H_mcsr_cg.cp_hcsr_access): targeted failing CSRs now fixed in RTL.
+    # From testplan (H_mcsr_cg.cp_hcsr_access): regression cases that previously failed.
     lines.extend(_generate_hcsr_regression_tests(test_data))
 
     # From testplan (H_mcsr_cg.cp_hcsr_access): safe subset (write-all-1s on masked CSRs).
@@ -279,7 +317,7 @@ def make_h(test_data: TestData) -> list[str]:
     # From testplan (H_mcsr_cg.cp_hcsr_access): read-only checks for hip/hgeip.
     lines.extend(_generate_hcsr_safe_readonly_tests(test_data))
 
-    # From testplan (H_mcsr_cg.cp_hcsr_access): expected-to-fail until RTL masks WARL bits.
+    # From testplan (H_mcsr_cg.cp_hcsr_access): WARL-masked cases expected to pass.
     lines.extend(_generate_hcsr_expected_fail_tests(test_data))
 
     # From testplan (H_mcsr_cg.cp_hcsr_access): additional CSRs expected to pass on current RTL.
@@ -287,5 +325,8 @@ def make_h(test_data: TestData) -> list[str]:
 
     # From testplan (H_mcsr_cg.cp_hcsr_access): RV32-only high-half CSRs.
     lines.extend(_generate_hcsr_rv32_access_tests(test_data))
+
+    # From testplan (Shvstvecd): vstvec direct mode base alignment.
+    lines.extend(_generate_shvstvecd_tests(test_data))
 
     return lines
