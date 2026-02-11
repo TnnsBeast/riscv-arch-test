@@ -6,4 +6,4 @@ ref_model_type: spike
 ref_model_args: "--isa=rv64gch_zicntr_zihpm_zicbom_zicboz_sstc_svpbmt_svadu"
 udb_config: cvw-rv64gch.yaml
 linker_script: link.ld
-dut_include_dir: . # Directory containing DUT specific model_test.h header
+dut_include_dir: . # Directory containing DUT specific rvmodel_macros.h header

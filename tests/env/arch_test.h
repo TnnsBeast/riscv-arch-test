@@ -1135,7 +1135,7 @@ common_\__MODE__\()excpt_handler:
         LI(     T6, sv_area_sz)
         csrr    T3, CSR_HSTATUS         /* get CSR with GVA bit, but only H-ext */
         slli    T3, T3, XLEN-1-GVA_LSB  /* sign extend rt justified GVA bit     */
-        slri    T3, T3, XLEN-1
+        srli    T3, T3, XLEN-1
         and     T4, T3, T6              /* clr delta if GVA=0                   */
       #else
         li      T4,0                    /* clr delta if no H-ext                */

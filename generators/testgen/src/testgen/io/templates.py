@@ -149,11 +149,11 @@ def generate_defines_from_extensions(ext_components: list[str]) -> list[str]:
     # TODO: Enable vector extension if needed when vector testgen is integrated
 
     # Enable trap handlers if needed
-    # Note: vtrap is intentionally not enabled by default to avoid toolchain
-    # incompatibilities when H is present but V-mode traps are not exercised.
+    if "H" in ext_components:
+        extra_defines.append("#define rvtest_vtrap_routine 1")
     if any(ext in ext_components for ext in ["H", "S"]):
-        extra_defines.append("#define rvtest_strap_routine 1")
+        extra_defines.append("#define rvtest_strap_routine")
     if any(ext in ext_components for ext in ["Sm", "H", "S", "U"]):
-        extra_defines.append("#define rvtest_mtrap_routine 1")
+        extra_defines.append("#define rvtest_mtrap_routine")
 
     return extra_defines
