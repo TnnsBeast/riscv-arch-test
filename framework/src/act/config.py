@@ -19,16 +19,25 @@ from ruamel.yaml import YAML
 class RefModelType(str, Enum):
     """Reference model types with their associated flags."""
 
-    # TODO: Add support for additional reference models (Spike, Whisper, etc.)
+    # TODO: Add support for additional reference models (Whisper, etc.)
     SAIL = "sail"
-    # SPIKE = "spike"
+    SPIKE = "spike"
 
     @property
     def signature_flags(self) -> str:
         """Get the flags for this reference model."""
         flags_map = {
             RefModelType.SAIL: "--test-signature={sig_file} --signature-granularity {granularity}",
-            # RefModelType.SPIKE: "+signature={sig_file} +signature-granularity={granularity}",
+            RefModelType.SPIKE: "+signature={sig_file} +signature-granularity={granularity}",
+        }
+        return flags_map[self]
+
+    @property
+    def debug_flags(self) -> str:
+        """Get the debug/trace flags for this reference model."""
+        flags_map = {
+            RefModelType.SAIL: "--trace-all --trace-output {sig_trace_file}",
+            RefModelType.SPIKE: "-l --log={sig_trace_file}",
         }
         return flags_map[self]
 
@@ -44,6 +53,7 @@ class Config(BaseModel):
     objdump_exe: Path | None = None
     ref_model_type: RefModelType = RefModelType.SAIL
     ref_model_exe: Path
+    ref_model_args: str | None = None
 
     model_config = {"frozen": True}
 
@@ -92,7 +102,7 @@ class Config(BaseModel):
 def check_ref_model_version(config: Config) -> None:
     """Check that the reference model version is compatible."""
     if config.ref_model_type == RefModelType.SAIL:
-        required_version = "0.10"
+        required_version = "0.9"
         try:
             result = subprocess.run(
                 [str(config.ref_model_exe), "--version"],
