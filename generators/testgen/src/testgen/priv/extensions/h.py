@@ -234,7 +234,7 @@ def _generate_hcsr_rv32_access_tests(test_data: TestData) -> list[str]:
 
     # High-half CSRs only exist when XLEN=32.
     csrs = [
-        "hedelegh"
+        "hedelegh",
         "henvcfgh",
         "htimedeltah",
         "vstimecmph",
